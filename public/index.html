@@ -1,0 +1,421 @@
+<!doctype html>
+<html lang="ko">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<meta name="robots" content="noindex">
+<title>공부방 파일 업로드</title>
+<style>
+  :root {
+    --bg: #f6f7f9; --card: #ffffff; --text: #1d2330; --muted: #667085;
+    --line: #dfe3ea; --accent: #2f6fed; --accent-text: #ffffff;
+    --ok: #1a7f4b; --err: #c2352b; --soft: #eef3ff;
+  }
+  @media (prefers-color-scheme: dark) {
+    :root {
+      --bg: #12151b; --card: #1b1f27; --text: #e8ebf1; --muted: #9aa3b2;
+      --line: #2c323d; --accent: #6b9bff; --accent-text: #0e1320;
+      --ok: #4cc38a; --err: #ff7a70; --soft: #1f2a44;
+    }
+  }
+  * { box-sizing: border-box; }
+  body {
+    margin: 0; background: var(--bg); color: var(--text);
+    font: 16px/1.5 -apple-system, BlinkMacSystemFont, "Apple SD Gothic Neo",
+          "Noto Sans KR", "Malgun Gothic", sans-serif;
+  }
+  main { max-width: 720px; margin: 0 auto; padding: 16px; }
+  h1 { font-size: 20px; margin: 8px 0 16px; }
+  h2 { font-size: 16px; margin: 0 0 12px; }
+  .card {
+    background: var(--card); border: 1px solid var(--line);
+    border-radius: 12px; padding: 16px; margin-bottom: 16px;
+  }
+  label { display: block; font-size: 13px; color: var(--muted); margin-bottom: 10px; }
+  label.inline { display: flex; gap: 8px; align-items: center; margin: 8px 0 12px; }
+  input[type=text], input[type=password], input[type=number], select {
+    display: block; width: 100%; margin-top: 4px; padding: 10px 12px;
+    font: inherit; color: var(--text); background: var(--bg);
+    border: 1px solid var(--line); border-radius: 8px;
+  }
+  input:focus, select:focus, button:focus-visible, .drop:focus-within {
+    outline: 2px solid var(--accent); outline-offset: 1px;
+  }
+  .grid { display: grid; grid-template-columns: 1fr 1fr; gap: 0 12px; border: 0; padding: 0; margin: 0; }
+  .grid .wide { grid-column: 1 / -1; }
+  fieldset[hidden] { display: none; }
+  button {
+    font: inherit; cursor: pointer; border-radius: 8px; padding: 10px 16px;
+    border: 1px solid var(--line); background: var(--card); color: var(--text);
+  }
+  button.primary { background: var(--accent); color: var(--accent-text); border-color: var(--accent); font-weight: 600; }
+  button.primary:disabled { opacity: .5; cursor: default; }
+  button.small { padding: 4px 10px; font-size: 13px; }
+  button.danger { color: var(--err); }
+  .seg { display: grid; grid-template-columns: 1fr 1fr; gap: 8px; margin-bottom: 16px; }
+  .seg button { padding: 12px; font-weight: 600; }
+  .seg button[aria-pressed=true] { background: var(--soft); border-color: var(--accent); color: var(--accent); }
+  .drop {
+    display: block; text-align: center; padding: 24px 12px; margin: 4px 0 12px;
+    border: 2px dashed var(--line); border-radius: 10px; color: var(--muted); cursor: pointer;
+  }
+  .drop.over { border-color: var(--accent); background: var(--soft); }
+  .drop input { position: absolute; width: 1px; height: 1px; opacity: 0; }
+  ul { list-style: none; padding: 0; margin: 0; }
+  li.row {
+    display: flex; gap: 8px; align-items: center; justify-content: space-between;
+    padding: 10px 0; border-top: 1px solid var(--line);
+  }
+  li.row:first-child { border-top: 0; }
+  .name { overflow-wrap: anywhere; font-size: 14px; }
+  .meta { font-size: 12px; color: var(--muted); }
+  .status { font-size: 12px; color: var(--muted); }
+  .status.ok { color: var(--ok); } .status.err { color: var(--err); } .status.warn { color: var(--muted); }
+  .actions { display: flex; gap: 6px; flex-shrink: 0; }
+  .msg { font-size: 13px; margin: 8px 0 0; min-height: 1.2em; }
+  .msg.err { color: var(--err); } .msg.ok { color: var(--ok); }
+  .hint { font-size: 12px; color: var(--muted); margin: 0 0 12px; }
+  .listhead { display: flex; justify-content: space-between; align-items: center; gap: 8px; margin-bottom: 8px; }
+  .listhead select { width: auto; margin: 0; }
+</style>
+</head>
+<body>
+<main>
+  <h1>공부방 파일 업로드</h1>
+
+  <section id="auth" class="card">
+    <h2>관리 토큰</h2>
+    <label>ADMIN_TOKEN
+      <input type="password" id="token" autocomplete="off" placeholder="업로드/삭제 권한이 있는 토큰">
+    </label>
+    <label class="inline"><input type="checkbox" id="remember"> 이 기기에 기억하기 (공용 기기에서는 끄세요)</label>
+    <button type="button" id="saveToken" class="primary">확인</button>
+    <p id="authMsg" class="msg" role="status"></p>
+  </section>
+
+  <div id="app" hidden>
+    <div class="seg" role="group" aria-label="업로드 분야">
+      <button type="button" data-cat="exam" aria-pressed="true">시험지 분석</button>
+      <button type="button" data-cat="writing" aria-pressed="false">라이팅 첨삭</button>
+    </div>
+
+    <form id="form" class="card" novalidate>
+      <fieldset id="examFields" class="grid">
+        <label class="wide">학교
+          <input type="text" name="school" required placeholder="예: OO중학교">
+        </label>
+        <label>학년
+          <select name="grade" required>
+            <option value="">선택</option>
+            <option>초3</option><option>초4</option><option>초5</option><option>초6</option>
+            <option>중1</option><option>중2</option><option>중3</option>
+            <option>고1</option><option>고2</option><option>고3</option>
+          </select>
+        </label>
+        <label>연도
+          <input type="number" name="year" required min="2000" max="2100">
+        </label>
+        <label>학기
+          <select name="term" required>
+            <option value="">선택</option><option>1학기</option><option>2학기</option>
+          </select>
+        </label>
+        <label>시험 종류
+          <select name="exam_type" required>
+            <option value="">선택</option>
+            <option>중간고사</option><option>기말고사</option><option>수행평가</option><option>모의고사</option><option>기타</option>
+          </select>
+        </label>
+      </fieldset>
+
+      <fieldset id="writingFields" class="grid" hidden disabled>
+        <label>학생 ID
+          <input type="text" name="student_id" required placeholder="예: S001">
+        </label>
+        <label>과제명
+          <input type="text" name="assignment" placeholder="예: Unit3 에세이">
+        </label>
+        <p class="hint wide">이름 대신 학생 ID를 사용하세요. ID와 이름 매칭표는 따로 관리하는 것이 안전합니다.</p>
+      </fieldset>
+
+      <label>메모 (선택)
+        <input type="text" id="note" placeholder="예: 서술형 3번 채점 기준 포함">
+      </label>
+
+      <label class="drop" id="drop">
+        파일을 끌어다 놓거나 눌러서 선택<br>
+        <span class="meta">docx · pdf · 이미지(png/jpg/webp) · txt, 파일당 최대 20MB</span>
+        <input type="file" id="files" multiple
+               accept=".pdf,.docx,.txt,.png,.jpg,.jpeg,.webp,.heic,.heif,image/*">
+      </label>
+
+      <ul id="queue"></ul>
+      <p id="formMsg" class="msg" role="status"></p>
+      <button type="submit" id="submit" class="primary">업로드</button>
+    </form>
+
+    <section class="card">
+      <div class="listhead">
+        <h2 style="margin:0">업로드된 파일</h2>
+        <select id="listCat" aria-label="목록 분야">
+          <option value="exam">시험지</option>
+          <option value="writing">라이팅</option>
+        </select>
+      </div>
+      <ul id="list"></ul>
+      <p id="listMsg" class="msg"></p>
+    </section>
+  </div>
+</main>
+
+<script src="mammoth.browser.min.js"></script>
+<script>
+(() => {
+  "use strict";
+  const MAX_UPLOAD = 20 * 1024 * 1024;
+  const MCP_INLINE = 3 * 1024 * 1024;
+  const MAX_TEXT_CHARS = 900000;
+  const $ = (s) => document.querySelector(s);
+
+  let token = "";
+  try { token = localStorage.getItem("srf_token") || sessionStorage.getItem("srf_token") || ""; } catch {}
+  let category = "exam";
+  let queue = []; // { file, li, statusEl, done }
+  let uploading = false;
+
+  // ---------- API ----------
+  function api(path, opts = {}) {
+    return fetch(path, { ...opts, headers: { ...(opts.headers || {}), Authorization: "Bearer " + token } });
+  }
+  async function errText(res) {
+    try { const j = await res.json(); return j.error || res.status; } catch { return res.status; }
+  }
+  function setMsg(el, text, kind) { el.textContent = text || ""; el.className = "msg" + (kind ? " " + kind : ""); }
+  const fmtSize = (n) => n >= 1048576 ? (n / 1048576).toFixed(1) + "MB" : Math.max(1, Math.round(n / 1024)) + "KB";
+
+  // ---------- 토큰 ----------
+  async function checkToken() {
+    const msg = $("#authMsg");
+    if (!token) { setMsg(msg, "토큰을 입력하세요", "err"); return false; }
+    setMsg(msg, "확인 중…");
+    try {
+      const res = await api("/files?limit=1");
+      if (!res.ok) { setMsg(msg, res.status === 401 ? "토큰이 올바르지 않습니다" : "오류: " + (await errText(res)), "err"); return false; }
+    } catch { setMsg(msg, "서버에 연결할 수 없습니다", "err"); return false; }
+    setMsg(msg, "");
+    $("#auth").hidden = true;
+    $("#app").hidden = false;
+    loadList();
+    return true;
+  }
+
+  $("#saveToken").addEventListener("click", async () => {
+    token = $("#token").value.trim();
+    const ok = await checkToken();
+    try {
+      localStorage.removeItem("srf_token"); sessionStorage.removeItem("srf_token");
+      if (ok) (($("#remember").checked ? localStorage : sessionStorage)).setItem("srf_token", token);
+    } catch {}
+  });
+  $("#token").addEventListener("keydown", (e) => { if (e.key === "Enter") $("#saveToken").click(); });
+
+  // ---------- 분야 전환 ----------
+  function setCategory(cat) {
+    category = cat;
+    document.querySelectorAll(".seg button").forEach((b) => b.setAttribute("aria-pressed", String(b.dataset.cat === cat)));
+    const exam = cat === "exam";
+    $("#examFields").hidden = !exam; $("#examFields").disabled = !exam;
+    $("#writingFields").hidden = exam; $("#writingFields").disabled = exam;
+    $("#listCat").value = cat;
+    setMsg($("#formMsg"), "");
+    loadList();
+  }
+  document.querySelectorAll(".seg button").forEach((b) => b.addEventListener("click", () => setCategory(b.dataset.cat)));
+  $("#listCat").addEventListener("change", (e) => { loadListFor(e.target.value); });
+  document.querySelector('[name=year]').value = new Date().getFullYear();
+
+  // ---------- 파일 선택 / 큐 ----------
+  function addFiles(fileList) {
+    for (const file of fileList) {
+      const li = document.createElement("li");
+      li.className = "row";
+      const left = document.createElement("div");
+      const name = document.createElement("div"); name.className = "name"; name.textContent = file.name;
+      const status = document.createElement("div"); status.className = "status"; status.textContent = fmtSize(file.size) + " · 대기";
+      left.append(name, status);
+      const rm = document.createElement("button");
+      rm.type = "button"; rm.className = "small"; rm.textContent = "제거";
+      const item = { file, li, statusEl: status, done: false };
+      rm.addEventListener("click", () => { if (uploading) return; queue = queue.filter((q) => q !== item); li.remove(); });
+      li.append(left, rm);
+      $("#queue").append(li);
+      queue.push(item);
+    }
+  }
+  $("#files").addEventListener("change", (e) => { addFiles(e.target.files); e.target.value = ""; });
+  const drop = $("#drop");
+  ["dragenter", "dragover"].forEach((ev) => drop.addEventListener(ev, (e) => { e.preventDefault(); drop.classList.add("over"); }));
+  ["dragleave", "drop"].forEach((ev) => drop.addEventListener(ev, (e) => { e.preventDefault(); drop.classList.remove("over"); }));
+  drop.addEventListener("drop", (e) => { if (e.dataTransfer?.files) addFiles(e.dataTransfer.files); });
+
+  function setStatus(item, text, kind) { item.statusEl.textContent = text; item.statusEl.className = "status" + (kind ? " " + kind : ""); }
+
+  // ---------- 파일 전처리 ----------
+  const isImage = (f) => f.type.startsWith("image/") || /\.(png|jpe?g|webp|heic|heif)$/i.test(f.name);
+  const isNativeImage = (f) => /^image\/(png|jpeg|webp)$/.test(f.type);
+
+  async function shrinkImage(file) {
+    const MAX_SIDE = 2000;
+    let bmp;
+    try { bmp = await createImageBitmap(file); }
+    catch {
+      if (isNativeImage(file)) return file;
+      throw new Error("이미지를 읽을 수 없습니다. HEIC 파일은 JPG로 변환해 올려주세요");
+    }
+    const scale = Math.min(1, MAX_SIDE / Math.max(bmp.width, bmp.height));
+    if (scale === 1 && file.size <= 2 * 1024 * 1024 && isNativeImage(file)) { bmp.close(); return file; }
+    const w = Math.round(bmp.width * scale), h = Math.round(bmp.height * scale);
+    const canvas = document.createElement("canvas");
+    canvas.width = w; canvas.height = h;
+    const ctx = canvas.getContext("2d");
+    ctx.fillStyle = "#fff"; ctx.fillRect(0, 0, w, h);
+    ctx.drawImage(bmp, 0, 0, w, h);
+    bmp.close();
+    const blob = await new Promise((res) => canvas.toBlob(res, "image/jpeg", 0.85));
+    if (!blob) throw new Error("이미지 변환에 실패했습니다");
+    return new File([blob], file.name.replace(/\.[^.]+$/, "") + ".jpg", { type: "image/jpeg" });
+  }
+
+  async function prepare(file) {
+    const lower = file.name.toLowerCase();
+    if (isImage(file)) return { file: await shrinkImage(file), text: null };
+    if (lower.endsWith(".docx")) {
+      if (typeof mammoth === "undefined") throw new Error("docx 변환 모듈을 불러오지 못했습니다");
+      const r = await mammoth.extractRawText({ arrayBuffer: await file.arrayBuffer() });
+      return { file, text: r.value.trim() };
+    }
+    if (lower.endsWith(".txt")) return { file, text: (await file.text()).trim() };
+    return { file, text: null };
+  }
+
+  // ---------- 업로드 ----------
+  async function uploadOne(item, common) {
+    setStatus(item, "준비 중…");
+    const prep = await prepare(item.file);
+    if (prep.file.size > MAX_UPLOAD) throw new Error("20MB를 초과합니다");
+
+    let text = prep.text;
+    let warn = "";
+    if (text !== null && text.length === 0) { warn = "추출된 텍스트가 비어 있습니다"; text = null; }
+    if (text && text.length > MAX_TEXT_CHARS) { warn = "텍스트가 너무 길어 일부만 저장했습니다"; text = text.slice(0, MAX_TEXT_CHARS); }
+    if (!text && !isImage(item.file) && prep.file.size > MCP_INLINE) warn = "3MB 초과: Claude(MCP)에서 본문을 읽을 수 없습니다";
+    if (!text && /\.docx$/i.test(item.file.name)) warn = warn || "텍스트 없는 docx는 Claude에서 읽을 수 없습니다";
+
+    const fd = new FormData();
+    fd.append("file", prep.file);
+    fd.append("category", category);
+    for (const [k, v] of common) fd.append(k, v);
+    if (text) fd.append("extracted_text", text);
+
+    setStatus(item, "업로드 중…");
+    const res = await api("/files", { method: "POST", body: fd });
+    if (res.status === 403) throw new Error("읽기 전용 토큰입니다. ADMIN_TOKEN을 사용하세요");
+    if (!res.ok) throw new Error(String(await errText(res)));
+    item.done = true;
+    setStatus(item, "완료 · " + fmtSize(prep.file.size) + (warn ? " · " + warn : ""), warn ? "warn" : "ok");
+  }
+
+  $("#form").addEventListener("submit", async (e) => {
+    e.preventDefault();
+    if (uploading) return;
+    const form = e.currentTarget;
+    const msg = $("#formMsg");
+    if (!form.reportValidity()) return;
+    const pending = queue.filter((q) => !q.done);
+    if (!pending.length) { setMsg(msg, "업로드할 파일을 선택하세요", "err"); return; }
+
+    const group = category === "exam" ? $("#examFields") : $("#writingFields");
+    const common = [];
+    group.querySelectorAll("input[name], select[name]").forEach((el) => { if (el.value.trim()) common.push([el.name, el.value.trim()]); });
+    const note = $("#note").value.trim();
+    if (note) common.push(["note", note]);
+
+    uploading = true; $("#submit").disabled = true;
+    setMsg(msg, "");
+    let ok = 0, fail = 0;
+    for (const item of pending) {
+      try { await uploadOne(item, common); ok++; }
+      catch (err) { fail++; setStatus(item, "실패: " + err.message, "err"); }
+    }
+    uploading = false; $("#submit").disabled = false;
+    setMsg(msg, `완료 ${ok}건${fail ? ", 실패 " + fail + "건 (실패한 파일은 목록에 남아 있습니다)" : ""}`, fail ? "err" : "ok");
+    queue = queue.filter((q) => { if (q.done) { q.li.remove(); return false; } return true; });
+    loadListFor(category);
+  });
+
+  // ---------- 목록 / 다운로드 / 삭제 ----------
+  function loadList() { loadListFor(category); }
+
+  async function loadListFor(cat) {
+    $("#listCat").value = cat;
+    const ul = $("#list"), msg = $("#listMsg");
+    ul.textContent = ""; setMsg(msg, "불러오는 중…");
+    try {
+      const res = await api("/files?limit=50&category=" + encodeURIComponent(cat));
+      if (!res.ok) { setMsg(msg, "목록 오류: " + (await errText(res)), "err"); return; }
+      const rows = await res.json();
+      setMsg(msg, rows.length ? "" : "아직 업로드된 파일이 없습니다");
+      for (const r of rows) ul.append(renderRow(r));
+    } catch { setMsg(msg, "서버에 연결할 수 없습니다", "err"); }
+  }
+
+  function renderRow(r) {
+    const li = document.createElement("li"); li.className = "row";
+    const left = document.createElement("div");
+    const name = document.createElement("div"); name.className = "name"; name.textContent = r.original_name;
+    const meta = document.createElement("div"); meta.className = "meta";
+    const info = r.category === "exam"
+      ? [r.school, r.grade, r.year && r.year + "년", r.term, r.exam_type]
+      : [r.student_id, r.assignment];
+    meta.textContent = info.filter(Boolean).join(" · ") + (info.some(Boolean) ? " · " : "") + fmtSize(r.size) + " · " + r.created_at.slice(0, 10) + (r.analyzed ? " · 분석 완료" : "");
+    left.append(name, meta);
+
+    const actions = document.createElement("div"); actions.className = "actions";
+    const dl = document.createElement("button"); dl.type = "button"; dl.className = "small"; dl.textContent = "다운로드";
+    dl.addEventListener("click", () => download(r, dl));
+    const del = document.createElement("button"); del.type = "button"; del.className = "small danger"; del.textContent = "삭제";
+    del.addEventListener("click", () => remove(r, li));
+    actions.append(dl, del);
+    li.append(left, actions);
+    return li;
+  }
+
+  async function download(r, btn) {
+    btn.disabled = true;
+    try {
+      const res = await api("/files/" + r.id + "/download");
+      if (!res.ok) throw new Error(String(await errText(res)));
+      const url = URL.createObjectURL(await res.blob());
+      const a = document.createElement("a");
+      a.href = url; a.download = r.original_name;
+      document.body.append(a); a.click(); a.remove();
+      setTimeout(() => URL.revokeObjectURL(url), 10000);
+    } catch (err) { setMsg($("#listMsg"), "다운로드 실패: " + err.message, "err"); }
+    btn.disabled = false;
+  }
+
+  async function remove(r, li) {
+    if (!confirm(`"${r.original_name}" 파일을 삭제할까요? 되돌릴 수 없습니다.`)) return;
+    try {
+      const res = await api("/files/" + r.id, { method: "DELETE" });
+      if (!res.ok) throw new Error(String(await errText(res)));
+      li.remove();
+    } catch (err) { setMsg($("#listMsg"), "삭제 실패: " + err.message, "err"); }
+  }
+
+  // 저장된 토큰이 있으면 자동 확인
+  if (token) { $("#token").value = token; checkToken(); }
+})();
+</script>
+</body>
+</html>

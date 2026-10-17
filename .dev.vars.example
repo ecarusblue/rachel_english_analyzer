@@ -1,0 +1,4 @@
+# 로컬 개발용. 이 파일을 .dev.vars 로 복사해서 값을 채우세요 (.dev.vars는 커밋 금지)
+ADMIN_TOKEN=change-me-admin-token
+ANALYST_TOKEN=change-me-analyst-token
+READ_TOKEN=change-me-read-token

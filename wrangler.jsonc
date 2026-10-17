@@ -1,0 +1,22 @@
+{
+  "name": "study-room-files",
+  "main": "index.ts",
+  "compatibility_date": "2026-10-01",
+  // 업로드 화면(public/index.html)을 같은 Worker에서 서비스합니다.
+  // 정적 파일이 먼저 응답하고, 나머지 경로(/files, /mcp, /health)는 Worker가 처리합니다.
+  "assets": { "directory": "./public" },
+  "r2_buckets": [
+    { "binding": "BUCKET", "bucket_name": "study-room-files" }
+  ],
+  "d1_databases": [
+    {
+      "binding": "DB",
+      "database_name": "study-room-files",
+      "database_id": "REPLACE_WITH_YOUR_D1_ID"
+    }
+  ],
+  "vars": {
+    // 웹앱 도메인으로 바꾸세요. 예: "https://my-app.pages.dev"
+    "ALLOWED_ORIGIN": "*"
+  }
+}
