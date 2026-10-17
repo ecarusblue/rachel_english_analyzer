@@ -1,5 +1,5 @@
 {
-  "name": "study-room-files",
+  "name": "rachel-english-analyzer",
   "main": "index.ts",
   "compatibility_date": "2026-10-01",
   // 업로드 화면(public/index.html)을 같은 Worker에서 서비스합니다.
@@ -12,7 +12,7 @@
     {
       "binding": "DB",
       "database_name": "study-room-files",
-      "database_id": "REPLACE_WITH_YOUR_D1_ID"
+      "database_id": "d3750262-b3ea-4872-8da2-393ede5e344c"
     }
   ],
   "vars": {
